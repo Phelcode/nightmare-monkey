@@ -103,6 +103,6 @@ dotnet build Narcopelago.sln -c Release -p:ScheduleIPath="C:\Program Files (x86)
 
 You can also set the `ScheduleIPath` environment variable instead of passing `-p:ScheduleIPath=...`, or change the default value in `Narcopelago.csproj`.
 
-The build outputs `bin\Release\net6.0\Narcopelago.dll` together with the `Data` folder (items/locations/regions/victory JSON, synced from the Schedule I apworld). The PostBuild step also copies `Narcopelago.dll` and `Data\` into `<ScheduleIPath>\Mods`; override the destination with `-p:ModsOutputPath=...`.
+The build outputs `bin\Release\net6.0\Narcopelago.dll` together with the `Data` folder (items/locations/regions/victory JSON, synced from the Schedule I apworld). The PostBuild step also copies `Narcopelago.dll`, its NuGet dependency `Archipelago.MultiClient.Net.dll` (required at runtime - without it the mod fails to load AP types and cannot connect), and `Data\` into `<ScheduleIPath>\Mods`; override the destination with `-p:ModsOutputPath=...`.
 
 To play, launch the game modded (Thunderstore Mod Manager or MelonLoader). The mod loads its `Data` folder from next to the DLL, or from `Mods\Narcopelago\Data` / `Mods\Data`.
