@@ -1,10 +1,9 @@
-using Harmony;
+using HarmonyLib;
 using Il2CppScheduleOne.DevUtilities;
 using Il2CppScheduleOne.Economy;
 using Il2CppScheduleOne.NPCs;
 using Il2CppScheduleOne.NPCs.Relation;
 using Il2CppScheduleOne.SpecialCustomers;
-using Il2CppScheduleOne.UI.Handover;
 using MelonLoader;
 using System;
 using System.Collections.Generic;
@@ -288,8 +287,10 @@ namespace Narcopelago
 
         /// <summary>
         /// Harmony patch for Customer.ProcessHandover.
-        /// When a bulk deal with a visiting special customer group is finalized, send the
+        /// When a bulk deal with a visiting special customer group is completed, send the
         /// "Special Customer Bulk Deal: {Group}" check.
+        /// Note: on game 0.4.7 the EHandoverOutcome enum and the outcome parameter were removed
+        /// from ProcessHandover, so this patch only takes __instance.
         /// </summary>
         [HarmonyPatch(typeof(Customer), "ProcessHandover")]
         public class Customer_ProcessHandover_Patch
@@ -300,13 +301,10 @@ namespace Narcopelago
                 return true;
             }
 
-            static void Postfix(Customer __instance, HandoverScreen.EHandoverOutcome outcome)
+            static void Postfix(Customer __instance)
             {
                 try
                 {
-                    if (outcome != HandoverScreen.EHandoverOutcome.Finalize)
-                        return;
-
                     var npc = __instance?.NPC;
                     if (npc == null)
                         return;
