@@ -70,22 +70,28 @@ namespace Narcopelago
 
         /// <summary>
         /// Checks if an NPC belongs to a special customer group (leader or member).
+        /// Group rosters are NPCContainer definitions, so matching is done by NPC full name
+        /// via the container's data (BasicInfo.FullName).
         /// </summary>
         private static bool IsNPCInGroup(NPC npc, SpecialCustomerData group)
         {
             if (npc == null || group == null)
                 return false;
 
+            string npcName = npc.FullName ?? npc.FirstName ?? "";
+            if (string.IsNullOrEmpty(npcName))
+                return false;
+
             try
             {
-                if (group.Leader != null && group.Leader.gameObject == npc.gameObject)
+                if (ContainerMatchesNPC(group.Leader, npcName))
                     return true;
 
                 if (group.Customers != null)
                 {
                     foreach (var member in group.Customers)
                     {
-                        if (member != null && member.gameObject == npc.gameObject)
+                        if (ContainerMatchesNPC(member, npcName))
                             return true;
                     }
                 }
@@ -95,6 +101,21 @@ namespace Narcopelago
                 MelonLogger.Error($"[SpecialCustomers] Error checking group membership: {ex.Message}");
             }
             return false;
+        }
+
+        /// <summary>
+        /// Checks if an NPCContainer definition refers to the given NPC name.
+        /// </summary>
+        private static bool ContainerMatchesNPC(SpecialCustomerData.NPCContainer container, string npcName)
+        {
+            if (container == null || string.IsNullOrEmpty(npcName))
+                return false;
+
+            var basicInfo = container.Data?.GetOriginalData()?.BasicInfo;
+            if (basicInfo == null || string.IsNullOrEmpty(basicInfo.FullName))
+                return false;
+
+            return StringHelper.EqualsNormalized(basicInfo.FullName, npcName);
         }
 
         /// <summary>
@@ -257,7 +278,7 @@ namespace Narcopelago
                     var relationData = npc.RelationData;
                     if (relationData != null && !relationData.Unlocked)
                     {
-                        NarcopelagoCustomers.Customer_OnCustomerUnlocked_Patch.SetArchipelagoUnlock(true);
+                        Customer_OnCustomerUnlocked_Patch.SetArchipelagoUnlock(true);
                         try
                         {
                             relationData.Unlock(NPCRelationData.EUnlockType.DirectApproach, true);
@@ -265,7 +286,7 @@ namespace Narcopelago
                         }
                         finally
                         {
-                            NarcopelagoCustomers.Customer_OnCustomerUnlocked_Patch.SetArchipelagoUnlock(false);
+                            Customer_OnCustomerUnlocked_Patch.SetArchipelagoUnlock(false);
                         }
                     }
 
