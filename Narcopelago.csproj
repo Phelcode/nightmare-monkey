@@ -5,6 +5,8 @@
 		<ScheduleIPath Condition="'$(ScheduleIPath)' == ''">F:\Steam games\steamapps\common\Schedule I</ScheduleIPath>
 		<!-- Where the built mod gets deployed. Defaults to the game's Mods folder. -->
 		<ModsOutputPath Condition="'$(ModsOutputPath)' == ''">$(ScheduleIPath)\Mods</ModsOutputPath>
+		<!-- Copy NuGet package assemblies to the output dir so PostBuild can deploy the AP client DLL next to the mod -->
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 
 		<ImplicitUsings>disable</ImplicitUsings>
 		<Nullable>disable</Nullable>
