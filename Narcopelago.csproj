@@ -558,7 +558,7 @@
 		<ModDataFiles Include="Data\**\*" />
 	</ItemGroup>
 
-	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
+	<Target Name="PostBuild" AfterTargets="Build">
 		<Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ModsOutputPath)" />
 		<!-- NuGet dependency of the mod itself; the game already ships Newtonsoft.Json, so only the AP client DLL must be deployed -->
 		<Copy SourceFiles="$(OutDir)Archipelago.MultiClient.Net.dll" DestinationFolder="$(ModsOutputPath)" Condition="Exists('$(OutDir)Archipelago.MultiClient.Net.dll')" />
