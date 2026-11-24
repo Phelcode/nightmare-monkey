@@ -1741,4 +1741,35 @@
         "tags": ["Sewer"],
         "modern_id": 404
     }
+,
+    "Special Customer Bulk Deal: Hippies": {
+        "region": "Overworld",
+        "requirements": {"randomize_special_customers": {"has_any": [["Amethyst Pidley Unlocked", "Bodie Hunt Unlocked", "Charlie Menson Unlocked", "Dylan Roberts Unlocked", "Jayne Lemons Unlocked", "Krystal Bird Unlocked", "Rose Welsh Unlocked", "Samantha Spears Unlocked"]]}},
+        "tags": ["Customer", "Special Customer"],
+        "modern_id": 405
+    },
+    "Special Customer Bulk Deal: Party Bus": {
+        "region": "Overworld",
+        "requirements": {"randomize_special_customers": {"has_any": [["Brad Chaddington Unlocked", "Chad Chaddington Unlocked", "Broc Evans Unlocked", "Dave Trotter Unlocked", "Josh Harrington Unlocked", "Michelle Delacroix Unlocked", "Stacy Sinclair Unlocked", "Terry Haines Unlocked", "Tracy Dupree Unlocked"]]}},
+        "tags": ["Customer", "Special Customer"],
+        "modern_id": 406
+    },
+    "Special Customer Bulk Deal: Businessmen": {
+        "region": "Overworld",
+        "requirements": {"randomize_special_customers": {"has_any": [["Bill Short Unlocked", "Grant Gainsworth Unlocked", "Hunter Yieldman Unlocked", "Johnny Smith Unlocked", "Micky Boone Unlocked", "Penny Stockman Unlocked"]]}},
+        "tags": ["Customer", "Special Customer"],
+        "modern_id": 407
+    },
+    "Special Customer Bulk Deal: Bikers": {
+        "region": "Overworld",
+        "requirements": {"randomize_special_customers": {"has_any": [["Bob Harley Unlocked", "Butch Malone Unlocked", "Diesel Rodd Unlocked", "Joey Quinn Unlocked", "Rick Boggers Unlocked", "Shane Mulligan Unlocked", "Timmy Benson Unlocked", "Vince Knuckles Unlocked"]]}},
+        "tags": ["Customer", "Special Customer"],
+        "modern_id": 408
+    },
+    "Realtor Purchase, Hyland Medical": {
+        "region": "Finishing the Job",
+        "requirements": {"randomize_business_properties": {"has": "Hyland Medical"}},
+        "tags": ["Business Property"],
+        "modern_id": 409
+    }
 } 

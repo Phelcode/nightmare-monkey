@@ -295,7 +295,7 @@ namespace Narcopelago
                 string itemName = item.ItemName;
                 
                 // Check if it's a customer unlock item using Data_Items tags
-                if (itemName.EndsWith(" Unlocked") && Data_Items.HasTag(itemName, "Customer"))
+                if (itemName.EndsWith(" Unlocked") && (Data_Items.HasTag(itemName, "Customer") || Data_Items.HasTag(itemName, "Special Customer")))
                 {
                     string customerName = itemName.Replace(" Unlocked", "").Trim();
                     
@@ -417,6 +417,13 @@ namespace Narcopelago
                             return true;
                         }
                     }
+                }
+
+                // v0.4.7 special customers (travelling groups) are not in the static customer lists;
+                // look them up in the NPC registry instead
+                if (NarcopelagoSpecialCustomers.TryUnlockSpecialCustomerByName(customerName))
+                {
+                    return true;
                 }
 
                 // Customer not found in either list - might not be loaded yet

@@ -81,3 +81,28 @@ Suggestion is to not collect fillers if you are not the host.
 ## A statement on the ownership over Schedule1AP
 
 Schedule I apworld is MIT license. Created by MacH8s
+
+## Building from source (Windows, IL2CPP)
+
+This mod targets the **IL2CPP** version of Schedule I. Its references point at the game's
+`Schedule I_Data\Managed` assemblies plus MelonLoader's generated `MelonLoader\Il2CppAssemblies`
+and `MelonLoader\net6` folders.
+
+### Prerequisites
+
+- Windows with the [.NET 6.0 SDK](https://dotnet.microsoft.com/download/dotnet/6.0) (or a newer SDK / Visual Studio 2022 with the .NET 6 targeting pack)
+- A Schedule I install with MelonLoader 0.7.x (IL2CPP) installed, and the game launched once with it, so that `<GameDir>\MelonLoader\Il2CppAssemblies` and `<GameDir>\MelonLoader\net6` exist
+
+### Build
+
+Point the build at your game folder using the `ScheduleIPath` property (the default is `F:\Steam games\steamapps\common\Schedule I`):
+
+```powershell
+dotnet build Narcopelago.sln -c Release -p:ScheduleIPath="C:\Program Files (x86)\Steam\steamapps\common\Schedule I"
+```
+
+You can also set the `ScheduleIPath` environment variable instead of passing `-p:ScheduleIPath=...`, or change the default value in `Narcopelago.csproj`.
+
+The build outputs `bin\Release\net6.0\Narcopelago.dll` together with the `Data` folder (items/locations/regions/victory JSON, synced from the Schedule I apworld). The PostBuild step also copies `Narcopelago.dll` and `Data\` into `<ScheduleIPath>\Mods`; override the destination with `-p:ModsOutputPath=...`.
+
+To play, launch the game modded (Thunderstore Mod Manager or MelonLoader). The mod loads its `Data` folder from next to the DLL, or from `Mods\Narcopelago\Data` / `Mods\Data`.

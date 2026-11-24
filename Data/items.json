@@ -1270,4 +1270,185 @@
         "tags": ["MacGuffin"],
         "modern_id": 600
     }
+,
+    "Hyland Medical": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Business Property"],
+        "modern_id": 657
+    },
+    "Amethyst Pidley Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Hippies"],
+        "modern_id": 658
+    },
+    "Bodie Hunt Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Hippies"],
+        "modern_id": 659
+    },
+    "Charlie Menson Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Hippies"],
+        "modern_id": 660
+    },
+    "Dylan Roberts Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Hippies"],
+        "modern_id": 661
+    },
+    "Jayne Lemons Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Hippies"],
+        "modern_id": 662
+    },
+    "Krystal Bird Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Hippies"],
+        "modern_id": 663
+    },
+    "Rose Welsh Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Hippies"],
+        "modern_id": 664
+    },
+    "Samantha Spears Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Hippies"],
+        "modern_id": 665
+    },
+    "Brad Chaddington Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Party Bus"],
+        "modern_id": 666
+    },
+    "Chad Chaddington Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Party Bus"],
+        "modern_id": 667
+    },
+    "Broc Evans Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Party Bus"],
+        "modern_id": 668
+    },
+    "Dave Trotter Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Party Bus"],
+        "modern_id": 669
+    },
+    "Josh Harrington Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Party Bus"],
+        "modern_id": 670
+    },
+    "Michelle Delacroix Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Party Bus"],
+        "modern_id": 671
+    },
+    "Stacy Sinclair Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Party Bus"],
+        "modern_id": 672
+    },
+    "Terry Haines Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Party Bus"],
+        "modern_id": 673
+    },
+    "Tracy Dupree Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Party Bus"],
+        "modern_id": 674
+    },
+    "Bill Short Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Businessmen"],
+        "modern_id": 675
+    },
+    "Grant Gainsworth Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Businessmen"],
+        "modern_id": 676
+    },
+    "Hunter Yieldman Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Businessmen"],
+        "modern_id": 677
+    },
+    "Johnny Smith Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Businessmen"],
+        "modern_id": 678
+    },
+    "Micky Boone Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Businessmen"],
+        "modern_id": 679
+    },
+    "Penny Stockman Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Businessmen"],
+        "modern_id": 680
+    },
+    "Bob Harley Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Bikers"],
+        "modern_id": 681
+    },
+    "Butch Malone Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Bikers"],
+        "modern_id": 682
+    },
+    "Diesel Rodd Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Bikers"],
+        "modern_id": 683
+    },
+    "Joey Quinn Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Bikers"],
+        "modern_id": 684
+    },
+    "Rick Boggers Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Bikers"],
+        "modern_id": 685
+    },
+    "Shane Mulligan Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Bikers"],
+        "modern_id": 686
+    },
+    "Timmy Benson Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Bikers"],
+        "modern_id": 687
+    },
+    "Vince Knuckles Unlocked": {
+        "classification": {"default": ["PROGRESSION_SKIP_BALANCING"]},
+        "tags": ["Special Customer", "Bikers"],
+        "modern_id": 688
+    },
+    "Black Rubber Mat 1x1": {
+        "classification": {"default": ["FILLER"]},
+        "tags": ["Basic Filler"],
+        "modern_id": 689
+    },
+    "Black Rubber Mat 2x2": {
+        "classification": {"default": ["FILLER"]},
+        "tags": ["Basic Filler"],
+        "modern_id": 690
+    },
+    "Black Rubber Mat 4x4": {
+        "classification": {"default": ["FILLER"]},
+        "tags": ["Basic Filler"],
+        "modern_id": 691
+    },
+    "Persian Rug": {
+        "classification": {"default": ["FILLER"]},
+        "tags": ["Basic Filler"],
+        "modern_id": 692
+    }
 }

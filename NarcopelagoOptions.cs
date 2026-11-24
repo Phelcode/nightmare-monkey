@@ -64,6 +64,12 @@ namespace Narcopelago
         public static bool Randomize_customers { get; private set; } = false;
 
         /// <summary>
+        /// Shuffle the v0.4.7 travelling special customer groups (Hippies, Party Bus, Businessmen, Bikers).
+        /// Bulk deals with a visiting group are checks regardless of this option.
+        /// </summary>
+        public static bool Randomize_special_customers { get; private set; } = false;
+
+        /// <summary>
         /// # of Recipe checks
         /// </summary>
         public static int Recipe_checks { get; private set; } = 0;
@@ -177,6 +183,7 @@ namespace Narcopelago
                 Randomize_business_properties = GetBool(slotData, "randomize_business_properties", false);
                 Randomize_dealers = GetBool(slotData, "randomize_dealers", false);
                 Randomize_customers = GetBool(slotData, "randomize_customers", false);
+                Randomize_special_customers = GetBool(slotData, "randomize_special_customers", false);
                 Recipe_checks = GetInt(slotData, "recipe_checks", 0);
                 Cash_for_trash = GetInt(slotData, "cash_for_trash", 0);
                 Randomize_level_unlocks = GetBool(slotData, "randomize_level_unlocks", false);
@@ -234,6 +241,7 @@ namespace Narcopelago
                 Randomize_business_properties = GetBool(slotData, "randomize_business_properties", false);
                 Randomize_dealers = GetBool(slotData, "randomize_dealers", false);
                 Randomize_customers = GetBool(slotData, "randomize_customers", false);
+                Randomize_special_customers = GetBool(slotData, "randomize_special_customers", false);
                 Recipe_checks = GetInt(slotData, "recipe_checks", 0);
                 Cash_for_trash = GetInt(slotData, "cash_for_trash", 0);
                 Randomize_level_unlocks = GetBool(slotData, "randomize_level_unlocks", false);
@@ -278,6 +286,7 @@ namespace Narcopelago
             Randomize_business_properties = false;
             Randomize_dealers = false;
             Randomize_customers = false;
+            Randomize_special_customers = false;
             Recipe_checks = 0;
             Cash_for_trash = 0;
             Randomize_level_unlocks = false;
@@ -310,6 +319,7 @@ namespace Narcopelago
             MelonLogger.Msg($"  Randomize_business_properties: {Randomize_business_properties}");
             MelonLogger.Msg($"  Randomize_dealers: {Randomize_dealers}");
             MelonLogger.Msg($"  Randomize_customers: {Randomize_customers}");
+            MelonLogger.Msg($"  Randomize_special_customers: {Randomize_special_customers}");
             MelonLogger.Msg($"  Recipe_checks: {Recipe_checks}");
             MelonLogger.Msg($"  Cash_for_trash: {Cash_for_trash}");
             MelonLogger.Msg($"  Randomize_level_unlocks: {Randomize_level_unlocks}");

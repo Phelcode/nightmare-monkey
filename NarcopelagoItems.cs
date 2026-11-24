@@ -219,8 +219,9 @@ namespace Narcopelago
             if (!itemName.EndsWith(" Unlocked"))
                 return false;
 
-            // Use Data_Items to check if this item has the "Customer" tag
-            if (Data_Items.HasTag(itemName, "Customer"))
+            // Use Data_Items to check if this item has the "Customer" or "Special Customer" tag
+            // ("Special Customer" = v0.4.7 travelling groups: Hippies, Party Bus, Businessmen, Bikers)
+            if (Data_Items.HasTag(itemName, "Customer") || Data_Items.HasTag(itemName, "Special Customer"))
                 return true;
 
             // Fallback: if Data_Items isn't loaded, use basic filtering
