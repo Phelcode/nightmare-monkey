@@ -45,6 +45,11 @@ namespace Narcopelago
         private static double _lastSentDeathTimestamp = 0;
 
         /// <summary>
+        /// Timestamp (Time.time) of the last local revive while connected to Archipelago.
+        /// </summary>
+        private static float _lastLocalReviveTime = -999f;
+
+        /// <summary>
         /// Queue of deaths to process on the main thread.
         /// </summary>
         private static ConcurrentQueue<(string source, string cause)> _pendingDeaths = new ConcurrentQueue<(string, string)>();
@@ -494,51 +499,51 @@ namespace Narcopelago
         }
 
         /// <summary>
-        /// Runs the game's multiplayer-style hospital respawn for the local player: closes the
-        /// death screen, opens the hospital bill screen, and revives at the medical centre
-        /// respawn point. Returns true on success.
+        /// Called when the local player is revived (e.g. after a hospital respawn).
         /// </summary>
-        public static bool TryHospitalRespawn(DeathScreen deathScreen)
+        public static void MarkLocalRevive()
         {
+            _lastLocalReviveTime = Time.time;
+        }
+
+        /// <summary>
+        /// Watchdog for the multiplayer-style hospital respawn: if the local player was revived
+        /// while connected to Archipelago but the game left them deactivated after the hospital
+        /// bill closed (cursor free, no movement, phone unusable), re-activate the player.
+        /// Call this from OnUpdate.
+        /// </summary>
+        public static void ProcessHospitalRespawnWatchdog()
+        {
+            if (!NarcopelagoMultiplayer.TreatAsMultiplayer)
+                return;
+
+            if (Time.time - _lastLocalReviveTime > 15f)
+                return;
+
             try
             {
                 var player = Player.Local;
-                if (player == null || player.Health == null)
-                {
-                    MelonLogger.Warning("[DeathLink] Hospital respawn skipped - no local player");
-                    return false;
-                }
+                if (player == null || player.Health == null || !player.Health.IsAlive)
+                    return;
 
-                deathScreen.Close();
+                if (Singleton<HospitalBillScreen>.InstanceExists && Singleton<HospitalBillScreen>.Instance.isOpen)
+                    return;
 
-                if (Singleton<HospitalBillScreen>.InstanceExists)
-                {
-                    Singleton<HospitalBillScreen>.Instance.Open();
-                }
-                else
-                {
-                    MelonLogger.Warning("[DeathLink] HospitalBillScreen instance not found");
-                }
+                var camera = PlayerSingleton<PlayerCamera>.Instance;
+                if (camera == null || camera.activeUIElementCount > 0)
+                    return;
 
-                Vector3 position = player.transform.position + Vector3.up;
-                Quaternion rotation = Quaternion.identity;
-                var map = Il2CppScheduleOne.Map.Map.Instance;
-                var medicalCentre = map != null ? map.MedicalCentre : null;
-                var respawnPoint = medicalCentre != null ? medicalCentre.RespawnPoint : null;
-                if (respawnPoint != null)
+                var movement = PlayerSingleton<PlayerMovement>.Instance;
+                if (movement != null && !movement.CanMove)
                 {
-                    position = respawnPoint.position + Vector3.up;
-                    rotation = respawnPoint.rotation;
+                    Player.Activate();
+                    _lastLocalReviveTime = -999f;
+                    MelonLogger.Msg("[DeathLink] Re-activated player input after hospital respawn");
                 }
-
-                player.Health.SendRevive(position, rotation);
-                MelonLogger.Msg("[DeathLink] Respawned at the hospital with a bill (multiplayer-style death)");
-                return true;
             }
             catch (Exception ex)
             {
-                MelonLogger.Error($"[DeathLink] Hospital respawn failed: {ex.Message}");
-                return false;
+                MelonLogger.Error($"[DeathLink] Respawn watchdog error: {ex.Message}");
             }
         }
 
@@ -552,6 +557,7 @@ namespace Narcopelago
             _hookedEvents = false;
             _isProcessingReceivedDeath = false;
             _lastSentDeathTimestamp = 0;
+            _lastLocalReviveTime = -999f;
             while (_pendingDeaths.TryDequeue(out _)) { }
         }
     }
@@ -623,6 +629,46 @@ namespace Narcopelago
             catch (Exception ex)
             {
                 MelonLogger.Error($"[PATCH] Error in PlayerHealth.Die Postfix: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Harmony patch for PlayerHealth's revive logic (RpcLogic___Revive_*) to timestamp local
+    /// revives, so the hospital-respawn watchdog can re-activate input if the game leaves the
+    /// player stuck after respawning.
+    /// </summary>
+    [HarmonyPatch(typeof(PlayerHealth))]
+    public class PlayerHealth_Revive_Patch
+    {
+        static MethodBase TargetMethod()
+        {
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            foreach (var method in typeof(PlayerHealth).GetMethods(flags))
+            {
+                if (method.Name.StartsWith("RpcLogic___Revive"))
+                    return method;
+            }
+            return null;
+        }
+
+        static bool Prepare()
+        {
+            return TargetMethod() != null;
+        }
+
+        static void Postfix(PlayerHealth __instance)
+        {
+            try
+            {
+                if (__instance.Player != null && __instance.Player == Player.Local && NarcopelagoMultiplayer.TreatAsMultiplayer)
+                {
+                    NarcopelagoDeathLink.MarkLocalRevive();
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Error($"[PATCH] Error in PlayerHealth.Revive Postfix: {ex.Message}");
             }
         }
     }
@@ -735,35 +781,9 @@ namespace Narcopelago
     }
 
     /// <summary>
-    /// Harmony patch for DeathScreen.RespawnClicked. While connected to Archipelago, runs the
-    /// multiplayer hospital respawn (bill + revive at the medical centre) regardless of the
-    /// singleplayer state.
-    /// </summary>
-    [HarmonyPatch(typeof(DeathScreen))]
-    public class DeathScreen_RespawnClicked_Patch
-    {
-        static MethodBase TargetMethod()
-        {
-            return DeathScreenPatchTargets.Resolve("RespawnClicked");
-        }
-
-        static bool Prepare()
-        {
-            return TargetMethod() != null;
-        }
-
-        static bool Prefix(DeathScreen __instance)
-        {
-            if (!NarcopelagoMultiplayer.TreatAsMultiplayer)
-                return true;
-
-            return !NarcopelagoDeathLink.TryHospitalRespawn(__instance);
-        }
-    }
-
-    /// <summary>
     /// Harmony patch for DeathScreen.LoadSaveClicked. While connected to Archipelago the load
-    /// save button is never used; redirect to the hospital respawn flow as a safety net.
+    /// save button is never used; redirect to the vanilla respawn (hospital) flow as a
+    /// safety net.
     /// </summary>
     [HarmonyPatch(typeof(DeathScreen))]
     public class DeathScreen_LoadSaveClicked_Patch
@@ -783,7 +803,20 @@ namespace Narcopelago
             if (!NarcopelagoMultiplayer.TreatAsMultiplayer)
                 return true;
 
-            return !NarcopelagoDeathLink.TryHospitalRespawn(__instance);
+            var respawnClicked = DeathScreenPatchTargets.Resolve("RespawnClicked");
+            if (respawnClicked == null)
+                return true;
+
+            try
+            {
+                respawnClicked.Invoke(__instance, null);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Error($"[PATCH] Failed to redirect LoadSaveClicked to RespawnClicked: {ex.Message}");
+                return true;
+            }
+            return false;
         }
     }
 

@@ -63,6 +63,9 @@ namespace Narcopelago
             // Process any queued DeathLink deaths on the main thread
             NarcopelagoDeathLink.ProcessMainThreadQueue();
 
+            // Watchdog: re-activate player input if a hospital respawn left the player stuck
+            NarcopelagoDeathLink.ProcessHospitalRespawnWatchdog();
+
             // Process goal checking on the main thread
             NarcopelagoGoal.ProcessMainThreadQueue();
 
