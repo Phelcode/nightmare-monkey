@@ -103,12 +103,20 @@ namespace Narcopelago
                         MelonLogger.Msg("DeathLink is disabled");
                     }
 
+                    // New session: disarm check sending until the initial sync re-arms it,
+                    // so reconnect replay cannot send already-known checks as new ones
+                    NarcopelagoLocations.DisarmChecks();
+
                     // Initialize item receiving - this will process starting items
                     NarcopelagoItems.Initialize(session);
 
                     // Initialize save system - loads claimed counts from disk
                     // Sync will happen when entering game scene (after delay for AP items to replay)
                     NarcopelagoSave.Initialize();
+
+                    // Re-run the claimable-items sync on every (re)connect so unclaimed
+                    // filler/bundle items are always rebuilt from received-minus-claimed
+                    NarcopelagoSave.QueueSyncFromSession();
 
                     // Subscribe to Archipelago message events for phone contacts
                     NarcopelagoAPContacts.SubscribeToEvents(session);

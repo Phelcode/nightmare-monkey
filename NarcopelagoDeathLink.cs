@@ -2,6 +2,7 @@ using Archipelago.MultiClient.Net;
 using Archipelago.MultiClient.Net.BounceFeatures.DeathLink;
 using Archipelago.MultiClient.Net.Packets;
 using HarmonyLib;
+using Il2CppScheduleOne.DevUtilities;
 using Il2CppScheduleOne.PlayerScripts;
 using Il2CppScheduleOne.PlayerScripts.Health;
 using Il2CppScheduleOne.UI;
@@ -10,6 +11,7 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -41,6 +43,11 @@ namespace Narcopelago
         private static bool _isProcessingReceivedDeath = false;
         private static bool _hookedEvents = false;
         private static double _lastSentDeathTimestamp = 0;
+
+        /// <summary>
+        /// Timestamp (Time.time) of the last local revive while connected to Archipelago.
+        /// </summary>
+        private static float _lastLocalReviveTime = -999f;
 
         /// <summary>
         /// Queue of deaths to process on the main thread.
@@ -442,8 +449,8 @@ namespace Narcopelago
         /// <summary>
         /// Kills the local player in response to a DeathLink.
         /// Calls SendDie() which triggers the game's built-in death flow.
-        /// The DeathScreen_CanRespawn_Patch ensures the Respawn button is always
-        /// available, which uses the game's multiplayer hospital respawn logic.
+        /// While connected to Archipelago the DeathScreen patches treat the session as
+        /// multiplayer, so respawn wakes the player at the hospital with a bill.
         /// </summary>
         private static void KillPlayer(string source, string cause)
         {
@@ -492,6 +499,122 @@ namespace Narcopelago
         }
 
         /// <summary>
+        /// Called when the local player is revived (e.g. after a hospital respawn).
+        /// </summary>
+        public static void MarkLocalRevive()
+        {
+            _lastLocalReviveTime = Time.time;
+        }
+
+        /// <summary>
+        /// Watchdog for the multiplayer-style hospital respawn: if the local player was revived
+        /// while connected to Archipelago but the game left them deactivated after the hospital
+        /// bill closed (cursor free, no movement, phone unusable), re-activate the player.
+        /// Call this from OnUpdate.
+        /// </summary>
+        public static void ProcessHospitalRespawnWatchdog()
+        {
+            if (!NarcopelagoMultiplayer.TreatAsMultiplayer)
+                return;
+
+            if (Time.time - _lastLocalReviveTime > 15f)
+                return;
+
+            try
+            {
+                var player = Player.Local;
+                if (player == null || player.Health == null || !player.Health.IsAlive)
+                    return;
+
+                if (Singleton<HospitalBillScreen>.InstanceExists && Singleton<HospitalBillScreen>.Instance.isOpen)
+                    return;
+
+                var camera = PlayerSingleton<PlayerCamera>.Instance;
+                if (camera == null)
+                    return;
+
+                int uiCount = GetActiveUIElementCount(camera);
+                if (uiCount != 0)
+                    return; // UI still open (or count unknown) - do not touch input
+
+                var movement = PlayerSingleton<PlayerMovement>.Instance;
+                if (movement == null || movement.CanMove)
+                    return;
+
+                ReactivateLocalPlayer(camera, movement);
+                _lastLocalReviveTime = -999f;
+                MelonLogger.Msg("[DeathLink] Re-activated player input after hospital respawn");
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Error($"[DeathLink] Respawn watchdog error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Number of active UI elements on the player camera, or -1 if the member cannot be
+        /// resolved on this game version (0.4.7 removed activeUIElementCount).
+        /// </summary>
+        private static int GetActiveUIElementCount(PlayerCamera camera)
+        {
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            var type = typeof(PlayerCamera);
+
+            var countProp = type.GetProperty("activeUIElementCount", flags);
+            if (countProp != null && countProp.PropertyType == typeof(int))
+                return (int)countProp.GetValue(camera);
+
+            var listProp = type.GetProperty("activeUIElements", flags);
+            object list = listProp != null ? listProp.GetValue(camera) : null;
+            if (list == null)
+            {
+                var listField = type.GetField("activeUIElements", flags);
+                if (listField != null)
+                    list = listField.GetValue(camera);
+            }
+            if (list != null)
+            {
+                var listCount = list.GetType().GetProperty("Count");
+                if (listCount != null)
+                    return (int)listCount.GetValue(list);
+            }
+            return -1;
+        }
+
+        /// <summary>
+        /// Restores player input after a respawn. 0.4.6 deleted Player.Activate(), so prefer
+        /// it when present (older versions) and otherwise perform its steps directly; LockMouse
+        /// gained a crosshair bool parameter in 0.4.6, so it is invoked via reflection.
+        /// </summary>
+        private static void ReactivateLocalPlayer(PlayerCamera camera, PlayerMovement movement)
+        {
+            const BindingFlags flags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+            var activate = typeof(Player).GetMethod("Activate", flags, null, Type.EmptyTypes, null);
+            if (activate != null)
+            {
+                activate.Invoke(null, null);
+                return;
+            }
+
+            camera.SetCanLook(true);
+            movement.CanMove = true;
+            if (PlayerSingleton<PlayerInventory>.InstanceExists)
+                PlayerSingleton<PlayerInventory>.Instance.SetInventoryEnabled(true);
+            if (Singleton<HUD>.InstanceExists)
+                Singleton<HUD>.Instance.SetCrosshairVisible(true);
+
+            const BindingFlags instanceFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            foreach (var method in typeof(PlayerCamera).GetMethods(instanceFlags))
+            {
+                if (method.Name != "LockMouse")
+                    continue;
+                var ps = method.GetParameters();
+                method.Invoke(camera, ps.Length == 1 ? new object[] { true } : new object[0]);
+                break;
+            }
+        }
+
+        /// <summary>
         /// Resets the DeathLink state.
         /// Call this when disconnecting from Archipelago.
         /// </summary>
@@ -501,13 +624,55 @@ namespace Narcopelago
             _hookedEvents = false;
             _isProcessingReceivedDeath = false;
             _lastSentDeathTimestamp = 0;
+            _lastLocalReviveTime = -999f;
             while (_pendingDeaths.TryDequeue(out _)) { }
         }
     }
 
     /// <summary>
+    /// While connected to an Archipelago server, the local game session is treated as
+    /// multiplayer for the death flow: dying respawns at the hospital with a bill instead
+    /// of reloading the last save.
+    /// </summary>
+    public static class NarcopelagoMultiplayer
+    {
+        public static bool TreatAsMultiplayer
+        {
+            get
+            {
+                try
+                {
+                    var session = ConnectionHandler.CurrentSession;
+                    return session != null && session.Socket != null && session.Socket.Connected;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Resolves DeathScreen patch targets that may be methods or property getters depending
+    /// on the game version.
+    /// </summary>
+    internal static class DeathScreenPatchTargets
+    {
+        public static MethodBase Resolve(string name)
+        {
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+            var type = typeof(DeathScreen);
+            var method = type.GetMethod(name, flags);
+            if (method != null)
+                return method;
+            return type.GetProperty(name, flags)?.GetGetMethod(true);
+        }
+    }
+
+    /// <summary>
     /// Harmony patch for PlayerHealth.Die to detect player death and trigger DeathLink.
-    /// The actual hospital redirect is handled by DeathScreen_Open_Patch.
+    /// The actual hospital redirect is handled by the DeathScreen patches.
     /// </summary>
     [HarmonyPatch(typeof(PlayerHealth), "RpcLogic___Die_2166136261")]
     public class PlayerHealth_Die_Patch
@@ -536,24 +701,97 @@ namespace Narcopelago
     }
 
     /// <summary>
-    /// Harmony patch for DeathScreen.CanRespawn to always return true.
-    /// This ensures the respawn button is always shown instead of the load save button,
-    /// which uses the game's multiplayer hospital respawn logic.
+    /// Harmony patch for PlayerHealth's revive logic (RpcLogic___Revive_*) to timestamp local
+    /// revives, so the hospital-respawn watchdog can re-activate input if the game leaves the
+    /// player stuck after respawning.
     /// </summary>
-    [HarmonyPatch(typeof(DeathScreen), nameof(DeathScreen.CanRespawn))]
-    public class DeathScreen_CanRespawn_Patch
+    [HarmonyPatch(typeof(PlayerHealth))]
+    public class PlayerHealth_Revive_Patch
     {
+        static MethodBase TargetMethod()
+        {
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            foreach (var method in typeof(PlayerHealth).GetMethods(flags))
+            {
+                if (method.Name.StartsWith("RpcLogic___Revive"))
+                    return method;
+            }
+            return null;
+        }
+
         static bool Prepare()
         {
-            MelonLogger.Msg("[PATCH] DeathScreen.CanRespawn patch is being prepared");
-            return true;
+            return TargetMethod() != null;
+        }
+
+        static void Postfix(PlayerHealth __instance)
+        {
+            try
+            {
+                if (__instance.Player != null && __instance.Player == Player.Local && NarcopelagoMultiplayer.TreatAsMultiplayer)
+                {
+                    NarcopelagoDeathLink.MarkLocalRevive();
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Error($"[PATCH] Error in PlayerHealth.Revive Postfix: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Harmony patch for DeathScreen.CanRespawn. While connected to Archipelago the session is
+    /// treated as multiplayer, so respawn is allowed and the respawn button is shown instead of
+    /// the load save button. Resolves CanRespawn whether it is a method or a property getter.
+    /// </summary>
+    [HarmonyPatch(typeof(DeathScreen))]
+    public class DeathScreen_CanRespawn_Patch
+    {
+        static MethodBase TargetMethod()
+        {
+            return DeathScreenPatchTargets.Resolve("CanRespawn");
+        }
+
+        static bool Prepare()
+        {
+            return TargetMethod() != null;
         }
 
         static bool Prefix(ref bool __result)
         {
-            // Always allow respawn - this shows the respawn button instead of load save
+            if (!NarcopelagoMultiplayer.TreatAsMultiplayer)
+                return true; // Vanilla behavior when not connected to Archipelago
+
             __result = true;
-            MelonLogger.Msg("[PATCH] CanRespawn called - returning true to enable respawn button");
+            return false; // Skip original method
+        }
+    }
+
+    /// <summary>
+    /// Harmony patch for DeathScreen.CanLoadSave (if present in this game version). While
+    /// connected to Archipelago the session is treated as multiplayer, so loading the last
+    /// save is never offered on the death screen.
+    /// </summary>
+    [HarmonyPatch(typeof(DeathScreen))]
+    public class DeathScreen_CanLoadSave_Patch
+    {
+        static MethodBase TargetMethod()
+        {
+            return DeathScreenPatchTargets.Resolve("CanLoadSave");
+        }
+
+        static bool Prepare()
+        {
+            return TargetMethod() != null;
+        }
+
+        static bool Prefix(ref bool __result)
+        {
+            if (!NarcopelagoMultiplayer.TreatAsMultiplayer)
+                return true;
+
+            __result = false;
             return false; // Skip original method
         }
     }
@@ -573,6 +811,9 @@ namespace Narcopelago
 
         static void Postfix(DeathScreen __instance)
         {
+            if (!NarcopelagoMultiplayer.TreatAsMultiplayer)
+                return;
+
             try
             {
                 MelonLogger.Msg("[PATCH] DeathScreen.Open postfix - ensuring respawn button is visible and load save is hidden");
@@ -603,6 +844,46 @@ namespace Narcopelago
             {
                 MelonLogger.Error($"[PATCH] Error in DeathScreen.Open Postfix: {ex.Message}");
             }
+        }
+    }
+
+    /// <summary>
+    /// Harmony patch for DeathScreen.LoadSaveClicked. While connected to Archipelago the load
+    /// save button is never used; redirect to the vanilla respawn (hospital) flow as a
+    /// safety net.
+    /// </summary>
+    [HarmonyPatch(typeof(DeathScreen))]
+    public class DeathScreen_LoadSaveClicked_Patch
+    {
+        static MethodBase TargetMethod()
+        {
+            return DeathScreenPatchTargets.Resolve("LoadSaveClicked");
+        }
+
+        static bool Prepare()
+        {
+            return TargetMethod() != null;
+        }
+
+        static bool Prefix(DeathScreen __instance)
+        {
+            if (!NarcopelagoMultiplayer.TreatAsMultiplayer)
+                return true;
+
+            var respawnClicked = DeathScreenPatchTargets.Resolve("RespawnClicked");
+            if (respawnClicked == null)
+                return true;
+
+            try
+            {
+                respawnClicked.Invoke(__instance, null);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Error($"[PATCH] Failed to redirect LoadSaveClicked to RespawnClicked: {ex.Message}");
+                return true;
+            }
+            return false;
         }
     }
 

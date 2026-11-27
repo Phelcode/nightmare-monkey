@@ -36,6 +36,13 @@ namespace Narcopelago
         private static int _processedItemIndex = 0;
 
         /// <summary>
+        /// The session the ItemReceived handler is currently subscribed to. Tracked separately
+        /// from IsInitialized so a reconnect (a new session in the same process) moves the
+        /// subscription over instead of leaving the new session without a handler.
+        /// </summary>
+        private static ArchipelagoSession _subscribedSession = null;
+
+        /// <summary>
         /// Called after successful connection to set up item receiving.
         /// Only subscribes to the ItemReceived event - items are processed as they arrive.
         /// </summary>
@@ -48,14 +55,28 @@ namespace Narcopelago
                 return;
             }
 
-            if (IsInitialized)
+            if (IsInitialized && ReferenceEquals(_subscribedSession, session))
             {
-                MelonLogger.Msg("[Items] Already initialized");
+                MelonLogger.Msg("[Items] Already initialized for this session");
                 return;
             }
 
             try
             {
+                // Reconnect without a game restart: move the subscription to the new session
+                if (_subscribedSession != null && !ReferenceEquals(_subscribedSession, session))
+                {
+                    try
+                    {
+                        _subscribedSession.Items.ItemReceived -= OnItemReceived;
+                        MelonLogger.Msg("[Items] Unsubscribed from previous session");
+                    }
+                    catch (Exception ex)
+                    {
+                        MelonLogger.Error($"[Items] Failed to unsubscribe from previous session: {ex.Message}");
+                    }
+                }
+
                 // Reset state
                 _alreadyReceivedCount = 0;
                 _processedItemIndex = 0;
@@ -64,6 +85,7 @@ namespace Narcopelago
 
                 // Subscribe to item received events
                 session.Items.ItemReceived += OnItemReceived;
+                _subscribedSession = session;
                 
                 MelonLogger.Msg("[Items] Subscribed to item received events");
                 IsInitialized = true;
@@ -446,6 +468,18 @@ namespace Narcopelago
         /// </summary>
         public static void Reset()
         {
+            if (_subscribedSession != null)
+            {
+                try
+                {
+                    _subscribedSession.Items.ItemReceived -= OnItemReceived;
+                }
+                catch (Exception ex)
+                {
+                    MelonLogger.Error($"[Items] Failed to unsubscribe on reset: {ex.Message}");
+                }
+                _subscribedSession = null;
+            }
             IsInitialized = false;
             _alreadyReceivedCount = 0;
             _processedItemIndex = 0;
