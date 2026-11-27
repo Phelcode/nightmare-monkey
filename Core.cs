@@ -24,6 +24,11 @@ namespace Narcopelago
         /// </summary>
         private const string GAME_SCENE_NAME = "Main";
 
+        /// <summary>
+        /// Tracks whether we are currently in a game scene.
+        /// </summary>
+        private static bool _inGameScene = false;
+
         public override void OnInitializeMelon()
         {
             LoggerInstance.Msg("Narcopelago v" + Info.Version + " loaded!");
@@ -63,6 +68,18 @@ namespace Narcopelago
 
             // Process any queued Archipelago phone messages on the main thread
             NarcopelagoAPContacts.ProcessMainThreadQueue();
+
+            // Process the location-check arming countdown
+            NarcopelagoLocations.ProcessMainThreadQueue();
+
+            // Once connected and in a game scene, schedule check arming so the initial
+            // SyncFromSession passes can seed local tracking from the server first.
+            // This prevents save load / reconnect replay from sending checks as new.
+            if (_inGameScene && NarcopelagoItems.IsInitialized &&
+                !NarcopelagoLocations.ChecksArmed && !NarcopelagoLocations.ArmingScheduled)
+            {
+                NarcopelagoLocations.ScheduleArming();
+            }
 
             // Process any queued cash-for-trash location checks on the main thread
             NarcopelagoCashForTrash.ProcessMainThreadQueue();
@@ -113,6 +130,7 @@ namespace Narcopelago
 
             // Track if we're in a game scene
             bool isGameScene = sceneName != "Menu" && sceneName != "Bootstrap" && sceneName != "Loading";
+            _inGameScene = isGameScene;
             NarcopelagoCustomers.SetInGameScene(isGameScene);
             NarcopelagoDealers.SetInGameScene(isGameScene);
             NarcopelagoSuppliers.SetInGameScene(isGameScene);

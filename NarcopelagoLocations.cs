@@ -24,6 +24,72 @@ namespace Narcopelago
         private static bool _isSending = false;
 
         /// <summary>
+        /// True once the initial post-connect sync has completed and location checks may be sent.
+        /// Prevents checks triggered by save load / reconnect replay from being sent as new checks.
+        /// </summary>
+        private static bool _checksArmed = false;
+        private static int _armDelayFrames = -1;
+        private const int ARM_DELAY_FRAMES = 180;
+
+        /// <summary>
+        /// Whether location checks may currently be sent to the server.
+        /// </summary>
+        public static bool ChecksArmed => _checksArmed;
+
+        /// <summary>
+        /// Whether an arming countdown is currently running.
+        /// </summary>
+        public static bool ArmingScheduled => _armDelayFrames >= 0;
+
+        /// <summary>
+        /// Disarms check sending. Called when a new session connects; checks re-arm once the
+        /// initial scene-load sync has seeded local tracking (see ScheduleArming).
+        /// </summary>
+        public static void DisarmChecks()
+        {
+            _checksArmed = false;
+            _armDelayFrames = -1;
+            MelonLogger.Msg("[Locations] Location checks disarmed (new session)");
+        }
+
+        /// <summary>
+        /// Schedules check sending to arm after the given number of frames. The delay must
+        /// exceed the per-system SyncFromSession delays so local tracking is seeded from the
+        /// server's checked locations before any check can go out.
+        /// </summary>
+        public static void ScheduleArming(int delayFrames = ARM_DELAY_FRAMES)
+        {
+            if (_checksArmed) return;
+            _armDelayFrames = delayFrames;
+            MelonLogger.Msg($"[Locations] Location checks will arm in {delayFrames} frames");
+        }
+
+        /// <summary>
+        /// Arms location check sending immediately.
+        /// </summary>
+        public static void ArmChecks()
+        {
+            _checksArmed = true;
+            _armDelayFrames = -1;
+            MelonLogger.Msg("[Locations] Location checks ARMED - new checks will now be sent");
+        }
+
+        /// <summary>
+        /// Call from Core.OnUpdate() to process the arming countdown.
+        /// </summary>
+        public static void ProcessMainThreadQueue()
+        {
+            if (_armDelayFrames > 0)
+            {
+                _armDelayFrames--;
+                if (_armDelayFrames == 0)
+                {
+                    ArmChecks();
+                }
+            }
+        }
+
+        /// <summary>
         /// Gets the LocationCheckHelper from the current session.
         /// Returns null if not connected.
         /// </summary>
@@ -73,6 +139,21 @@ namespace Narcopelago
                 return;
             }
 
+            // Never send checks before the initial sync has armed us; this drops checks
+            // triggered by save load / reconnect replay (e.g. re-fired game events).
+            if (!_checksArmed)
+            {
+                MelonLogger.Warning($"[Locations] Dropping check for location {locationId} - checks not armed yet (initial sync running)");
+                return;
+            }
+
+            // Authoritative guard: never send a check the server already recorded.
+            if (IsLocationChecked(locationId))
+            {
+                MelonLogger.Msg($"[Locations] Location {locationId} already checked on server - skipping");
+                return;
+            }
+
             MelonLogger.Msg($"[Locations] Queueing location {locationId} for completion");
             
             lock (_pendingLock)
@@ -110,6 +191,15 @@ namespace Narcopelago
             {
                 foreach (var id in locationIds)
                 {
+                    if (!_checksArmed)
+                    {
+                        MelonLogger.Warning($"[Locations] Dropping check for location {id} - checks not armed yet (initial sync running)");
+                        continue;
+                    }
+                    if (IsLocationChecked(id))
+                    {
+                        continue;
+                    }
                     if (!_pendingLocationChecks.Contains(id))
                     {
                         _pendingLocationChecks.Add(id);
@@ -150,7 +240,18 @@ namespace Narcopelago
                 _pendingLocationChecks.Clear();
             }
 
-            MelonLogger.Msg($"[Locations] Sending {locationsToSend.Length} location checks...");
+            // Re-check against the server's authoritative state right before sending;
+            // anything already recorded there must not be sent again.
+            locationsToSend = locationsToSend.Where(id => !IsLocationChecked(id)).ToArray();
+
+            if (locationsToSend.Length > 0)
+            {
+                MelonLogger.Msg($"[Locations] Sending {locationsToSend.Length} location checks...");
+            }
+            else
+            {
+                MelonLogger.Msg("[Locations] All queued locations already checked on server - nothing to send");
+            }
 
             try
             {
@@ -159,8 +260,11 @@ namespace Narcopelago
                 {
                     try
                     {
-                        Locations.CompleteLocationChecks(locationsToSend);
-                        MelonLogger.Msg($"[Locations] Successfully completed {locationsToSend.Length} locations");
+                        if (locationsToSend.Length > 0)
+                        {
+                            Locations.CompleteLocationChecks(locationsToSend);
+                            MelonLogger.Msg($"[Locations] Successfully completed {locationsToSend.Length} locations");
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -275,6 +379,7 @@ namespace Narcopelago
                 _pendingLocationChecks.Clear();
                 _isSending = false;
             }
+            DisarmChecks();
         }
 
         /// <summary>

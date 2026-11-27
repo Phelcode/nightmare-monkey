@@ -103,6 +103,10 @@ namespace Narcopelago
                         MelonLogger.Msg("DeathLink is disabled");
                     }
 
+                    // New session: disarm check sending until the initial sync re-arms it,
+                    // so reconnect replay cannot send already-known checks as new ones
+                    NarcopelagoLocations.DisarmChecks();
+
                     // Initialize item receiving - this will process starting items
                     NarcopelagoItems.Initialize(session);
 
