@@ -114,6 +114,10 @@ namespace Narcopelago
                     // Sync will happen when entering game scene (after delay for AP items to replay)
                     NarcopelagoSave.Initialize();
 
+                    // Re-run the claimable-items sync on every (re)connect so unclaimed
+                    // filler/bundle items are always rebuilt from received-minus-claimed
+                    NarcopelagoSave.QueueSyncFromSession();
+
                     // Subscribe to Archipelago message events for phone contacts
                     NarcopelagoAPContacts.SubscribeToEvents(session);
 

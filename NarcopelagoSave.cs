@@ -127,6 +127,19 @@ namespace Narcopelago
         }
 
         /// <summary>
+        /// Requests a claimable-items sync from the current AP session. Safe to call on every
+        /// (re)connect: the sync rebuilds the unclaimed list deterministically from
+        /// received-minus-claimed, so re-running it never duplicates or loses items.
+        /// </summary>
+        public static void QueueSyncFromSession(int delayFrames = 30)
+        {
+            _syncPending = true;
+            _syncDelayFrames = delayFrames;
+            _syncDoneThisSession = false;
+            MelonLogger.Msg($"[Save] Queued claimable-items sync in {delayFrames} frames");
+        }
+
+        /// <summary>
         /// Called when entering/leaving a game scene.
         /// On enter: Queue sync after delay
         /// On leave: Reload from disk (discard unsaved changes)
@@ -362,6 +375,10 @@ namespace Narcopelago
 
             var allItems = session.Items.AllItemsReceived;
             MelonLogger.Msg($"[Save] Syncing from {allItems.Count} AP items (seed: {_currentSeed})...");
+
+            // Rebuild the claimable list from scratch so repeated syncs are idempotent
+            // and a list cleared on scene-leave can never leave items missing.
+            NarcopelagoFillers.ClearClaimableItems();
 
             // Count received consumables
             Dictionary<string, int> receivedCounts = new Dictionary<string, int>();

@@ -61,16 +61,6 @@ namespace Narcopelago
         private static bool _initPending = false;
         private static int _initDelayFrames = 0;
 
-        /// <summary>
-        /// Tracks if a sync from session is pending.
-        /// </summary>
-        private static bool _syncPending = false;
-
-        /// <summary>
-        /// Counter for delayed sync.
-        /// </summary>
-        private static int _syncDelayFrames = 0;
-
         // Phone app UI references
         private static GameObject _appPanel = null;
         private static GameObject _appButton = null;
@@ -225,6 +215,21 @@ namespace Narcopelago
         }
 
         /// <summary>
+        /// Clears the claimable items list and pending queue. Lossless: the list is derived
+        /// state and is rebuilt from received-minus-claimed by NarcopelagoSave's sync.
+        /// </summary>
+        public static void ClearClaimableItems()
+        {
+            lock (_lock)
+            {
+                _claimableItems.Clear();
+            }
+            while (_pendingItems.TryDequeue(out _)) { }
+            RefreshUI();
+            MelonLogger.Msg("[Fillers] Cleared claimable items list (will be rebuilt by sync)");
+        }
+
+        /// <summary>
         /// Gets the count of claimable items.
         /// </summary>
         public static int GetClaimableCount()
@@ -257,7 +262,6 @@ namespace Narcopelago
             _listEntries.Clear();
             _closeAppsRegistered = false;
             _phoneReference = null;
-            _syncPending = false;
             MelonLogger.Msg("[Fillers] Reset tracking state");
         }
 
