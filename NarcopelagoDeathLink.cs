@@ -530,20 +530,87 @@ namespace Narcopelago
                     return;
 
                 var camera = PlayerSingleton<PlayerCamera>.Instance;
-                if (camera == null || camera.activeUIElementCount > 0)
+                if (camera == null)
                     return;
 
+                int uiCount = GetActiveUIElementCount(camera);
+                if (uiCount != 0)
+                    return; // UI still open (or count unknown) - do not touch input
+
                 var movement = PlayerSingleton<PlayerMovement>.Instance;
-                if (movement != null && !movement.CanMove)
-                {
-                    Player.Activate();
-                    _lastLocalReviveTime = -999f;
-                    MelonLogger.Msg("[DeathLink] Re-activated player input after hospital respawn");
-                }
+                if (movement == null || movement.CanMove)
+                    return;
+
+                ReactivateLocalPlayer(camera, movement);
+                _lastLocalReviveTime = -999f;
+                MelonLogger.Msg("[DeathLink] Re-activated player input after hospital respawn");
             }
             catch (Exception ex)
             {
                 MelonLogger.Error($"[DeathLink] Respawn watchdog error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Number of active UI elements on the player camera, or -1 if the member cannot be
+        /// resolved on this game version (0.4.7 removed activeUIElementCount).
+        /// </summary>
+        private static int GetActiveUIElementCount(PlayerCamera camera)
+        {
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            var type = typeof(PlayerCamera);
+
+            var countProp = type.GetProperty("activeUIElementCount", flags);
+            if (countProp != null && countProp.PropertyType == typeof(int))
+                return (int)countProp.GetValue(camera);
+
+            var listProp = type.GetProperty("activeUIElements", flags);
+            object list = listProp != null ? listProp.GetValue(camera) : null;
+            if (list == null)
+            {
+                var listField = type.GetField("activeUIElements", flags);
+                if (listField != null)
+                    list = listField.GetValue(camera);
+            }
+            if (list != null)
+            {
+                var listCount = list.GetType().GetProperty("Count");
+                if (listCount != null)
+                    return (int)listCount.GetValue(list);
+            }
+            return -1;
+        }
+
+        /// <summary>
+        /// Restores player input after a respawn. 0.4.6 deleted Player.Activate(), so prefer
+        /// it when present (older versions) and otherwise perform its steps directly; LockMouse
+        /// gained a crosshair bool parameter in 0.4.6, so it is invoked via reflection.
+        /// </summary>
+        private static void ReactivateLocalPlayer(PlayerCamera camera, PlayerMovement movement)
+        {
+            const BindingFlags flags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+            var activate = typeof(Player).GetMethod("Activate", flags, null, Type.EmptyTypes, null);
+            if (activate != null)
+            {
+                activate.Invoke(null, null);
+                return;
+            }
+
+            camera.SetCanLook(true);
+            movement.CanMove = true;
+            if (PlayerSingleton<PlayerInventory>.InstanceExists)
+                PlayerSingleton<PlayerInventory>.Instance.SetInventoryEnabled(true);
+            if (Singleton<HUD>.InstanceExists)
+                Singleton<HUD>.Instance.SetCrosshairVisible(true);
+
+            const BindingFlags instanceFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            foreach (var method in typeof(PlayerCamera).GetMethods(instanceFlags))
+            {
+                if (method.Name != "LockMouse")
+                    continue;
+                var ps = method.GetParameters();
+                method.Invoke(camera, ps.Length == 1 ? new object[] { true } : new object[0]);
+                break;
             }
         }
 
