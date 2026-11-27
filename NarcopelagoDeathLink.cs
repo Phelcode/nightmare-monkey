@@ -2,6 +2,7 @@ using Archipelago.MultiClient.Net;
 using Archipelago.MultiClient.Net.BounceFeatures.DeathLink;
 using Archipelago.MultiClient.Net.Packets;
 using HarmonyLib;
+using Il2CppScheduleOne.DevUtilities;
 using Il2CppScheduleOne.PlayerScripts;
 using Il2CppScheduleOne.PlayerScripts.Health;
 using Il2CppScheduleOne.UI;
@@ -10,6 +11,7 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -442,8 +444,8 @@ namespace Narcopelago
         /// <summary>
         /// Kills the local player in response to a DeathLink.
         /// Calls SendDie() which triggers the game's built-in death flow.
-        /// The DeathScreen_CanRespawn_Patch ensures the Respawn button is always
-        /// available, which uses the game's multiplayer hospital respawn logic.
+        /// While connected to Archipelago the DeathScreen patches treat the session as
+        /// multiplayer, so respawn wakes the player at the hospital with a bill.
         /// </summary>
         private static void KillPlayer(string source, string cause)
         {
@@ -492,6 +494,55 @@ namespace Narcopelago
         }
 
         /// <summary>
+        /// Runs the game's multiplayer-style hospital respawn for the local player: closes the
+        /// death screen, opens the hospital bill screen, and revives at the medical centre
+        /// respawn point. Returns true on success.
+        /// </summary>
+        public static bool TryHospitalRespawn(DeathScreen deathScreen)
+        {
+            try
+            {
+                var player = Player.Local;
+                if (player == null || player.Health == null)
+                {
+                    MelonLogger.Warning("[DeathLink] Hospital respawn skipped - no local player");
+                    return false;
+                }
+
+                deathScreen.Close();
+
+                if (Singleton<HospitalBillScreen>.InstanceExists)
+                {
+                    Singleton<HospitalBillScreen>.Instance.Open();
+                }
+                else
+                {
+                    MelonLogger.Warning("[DeathLink] HospitalBillScreen instance not found");
+                }
+
+                Vector3 position = player.transform.position + Vector3.up;
+                Quaternion rotation = Quaternion.identity;
+                var map = Il2CppScheduleOne.Map.Map.Instance;
+                var medicalCentre = map != null ? map.MedicalCentre : null;
+                var respawnPoint = medicalCentre != null ? medicalCentre.RespawnPoint : null;
+                if (respawnPoint != null)
+                {
+                    position = respawnPoint.position + Vector3.up;
+                    rotation = respawnPoint.rotation;
+                }
+
+                player.Health.SendRevive(position, rotation);
+                MelonLogger.Msg("[DeathLink] Respawned at the hospital with a bill (multiplayer-style death)");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Error($"[DeathLink] Hospital respawn failed: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Resets the DeathLink state.
         /// Call this when disconnecting from Archipelago.
         /// </summary>
@@ -506,8 +557,49 @@ namespace Narcopelago
     }
 
     /// <summary>
+    /// While connected to an Archipelago server, the local game session is treated as
+    /// multiplayer for the death flow: dying respawns at the hospital with a bill instead
+    /// of reloading the last save.
+    /// </summary>
+    public static class NarcopelagoMultiplayer
+    {
+        public static bool TreatAsMultiplayer
+        {
+            get
+            {
+                try
+                {
+                    var session = ConnectionHandler.CurrentSession;
+                    return session != null && session.Socket != null && session.Socket.Connected;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Resolves DeathScreen patch targets that may be methods or property getters depending
+    /// on the game version.
+    /// </summary>
+    internal static class DeathScreenPatchTargets
+    {
+        public static MethodBase Resolve(string name)
+        {
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+            var type = typeof(DeathScreen);
+            var method = type.GetMethod(name, flags);
+            if (method != null)
+                return method;
+            return type.GetProperty(name, flags)?.GetGetMethod(true);
+        }
+    }
+
+    /// <summary>
     /// Harmony patch for PlayerHealth.Die to detect player death and trigger DeathLink.
-    /// The actual hospital redirect is handled by DeathScreen_Open_Patch.
+    /// The actual hospital redirect is handled by the DeathScreen patches.
     /// </summary>
     [HarmonyPatch(typeof(PlayerHealth), "RpcLogic___Die_2166136261")]
     public class PlayerHealth_Die_Patch
@@ -536,24 +628,57 @@ namespace Narcopelago
     }
 
     /// <summary>
-    /// Harmony patch for DeathScreen.CanRespawn to always return true.
-    /// This ensures the respawn button is always shown instead of the load save button,
-    /// which uses the game's multiplayer hospital respawn logic.
+    /// Harmony patch for DeathScreen.CanRespawn. While connected to Archipelago the session is
+    /// treated as multiplayer, so respawn is allowed and the respawn button is shown instead of
+    /// the load save button. Resolves CanRespawn whether it is a method or a property getter.
     /// </summary>
-    [HarmonyPatch(typeof(DeathScreen), nameof(DeathScreen.CanRespawn))]
+    [HarmonyPatch(typeof(DeathScreen))]
     public class DeathScreen_CanRespawn_Patch
     {
+        static MethodBase TargetMethod()
+        {
+            return DeathScreenPatchTargets.Resolve("CanRespawn");
+        }
+
         static bool Prepare()
         {
-            MelonLogger.Msg("[PATCH] DeathScreen.CanRespawn patch is being prepared");
-            return true;
+            return TargetMethod() != null;
         }
 
         static bool Prefix(ref bool __result)
         {
-            // Always allow respawn - this shows the respawn button instead of load save
+            if (!NarcopelagoMultiplayer.TreatAsMultiplayer)
+                return true; // Vanilla behavior when not connected to Archipelago
+
             __result = true;
-            MelonLogger.Msg("[PATCH] CanRespawn called - returning true to enable respawn button");
+            return false; // Skip original method
+        }
+    }
+
+    /// <summary>
+    /// Harmony patch for DeathScreen.CanLoadSave (if present in this game version). While
+    /// connected to Archipelago the session is treated as multiplayer, so loading the last
+    /// save is never offered on the death screen.
+    /// </summary>
+    [HarmonyPatch(typeof(DeathScreen))]
+    public class DeathScreen_CanLoadSave_Patch
+    {
+        static MethodBase TargetMethod()
+        {
+            return DeathScreenPatchTargets.Resolve("CanLoadSave");
+        }
+
+        static bool Prepare()
+        {
+            return TargetMethod() != null;
+        }
+
+        static bool Prefix(ref bool __result)
+        {
+            if (!NarcopelagoMultiplayer.TreatAsMultiplayer)
+                return true;
+
+            __result = false;
             return false; // Skip original method
         }
     }
@@ -573,6 +698,9 @@ namespace Narcopelago
 
         static void Postfix(DeathScreen __instance)
         {
+            if (!NarcopelagoMultiplayer.TreatAsMultiplayer)
+                return;
+
             try
             {
                 MelonLogger.Msg("[PATCH] DeathScreen.Open postfix - ensuring respawn button is visible and load save is hidden");
@@ -603,6 +731,59 @@ namespace Narcopelago
             {
                 MelonLogger.Error($"[PATCH] Error in DeathScreen.Open Postfix: {ex.Message}");
             }
+        }
+    }
+
+    /// <summary>
+    /// Harmony patch for DeathScreen.RespawnClicked. While connected to Archipelago, runs the
+    /// multiplayer hospital respawn (bill + revive at the medical centre) regardless of the
+    /// singleplayer state.
+    /// </summary>
+    [HarmonyPatch(typeof(DeathScreen))]
+    public class DeathScreen_RespawnClicked_Patch
+    {
+        static MethodBase TargetMethod()
+        {
+            return DeathScreenPatchTargets.Resolve("RespawnClicked");
+        }
+
+        static bool Prepare()
+        {
+            return TargetMethod() != null;
+        }
+
+        static bool Prefix(DeathScreen __instance)
+        {
+            if (!NarcopelagoMultiplayer.TreatAsMultiplayer)
+                return true;
+
+            return !NarcopelagoDeathLink.TryHospitalRespawn(__instance);
+        }
+    }
+
+    /// <summary>
+    /// Harmony patch for DeathScreen.LoadSaveClicked. While connected to Archipelago the load
+    /// save button is never used; redirect to the hospital respawn flow as a safety net.
+    /// </summary>
+    [HarmonyPatch(typeof(DeathScreen))]
+    public class DeathScreen_LoadSaveClicked_Patch
+    {
+        static MethodBase TargetMethod()
+        {
+            return DeathScreenPatchTargets.Resolve("LoadSaveClicked");
+        }
+
+        static bool Prepare()
+        {
+            return TargetMethod() != null;
+        }
+
+        static bool Prefix(DeathScreen __instance)
+        {
+            if (!NarcopelagoMultiplayer.TreatAsMultiplayer)
+                return true;
+
+            return !NarcopelagoDeathLink.TryHospitalRespawn(__instance);
         }
     }
 
